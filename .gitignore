@@ -10,6 +10,8 @@ model/sanyaosukuangjia/quana/
 model/sanyaosukuangjia/outputs/cache/
 model/sanyaosukuangjia/outputs/**/*.xlsx
 model/sanyaosukuangjia/outputs/**/*.csv
+!model/sanyaosukuangjia/data/
+!model/sanyaosukuangjia/data/**
 
 # IDE
 .idea/

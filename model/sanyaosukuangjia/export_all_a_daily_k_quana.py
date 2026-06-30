@@ -28,7 +28,12 @@ _WIN32 = sys.platform == "win32"
 import akshare as ak
 import pandas as pd
 
-from filter_a_share_universe import ensure_output_dir, evaluate_universe_with_tencent, load_universe
+from filter_a_share_universe import (
+    ensure_output_dir,
+    evaluate_universe_with_eastmoney,
+    evaluate_universe_with_tencent,
+    load_universe,
+)
 from screen_matrix_short_trend import fetch_daily_hist
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -135,6 +140,12 @@ def main() -> None:
         action="store_true",
         help="先东财、不足再新浪（默认只新浪）",
     )
+    ap.add_argument(
+        "--mcap-source",
+        choices=("tencent", "eastmoney", "auto"),
+        default="auto",
+        help="筛市值行情源：腾讯 / 东财 / 自动(先腾讯失败再东财，GitHub Actions 建议 eastmoney)",
+    )
     ap.add_argument("--em-timeout", type=float, default=6.0, help="东财请求超时(秒)")
     ap.add_argument(
         "--sleep",
@@ -153,13 +164,26 @@ def main() -> None:
     mcap_yi: float = float(args.min_market_cap_yi)
 
     if not args.skip_mcap_filter:
+        src = str(args.mcap_source)
         print(
-            f"[1/2] 正在拉取腾讯行情并筛: 总市值(亿元) > {mcap_yi} ...",
+            f"[1/2] 正在拉取行情并筛: 总市值(亿元) > {mcap_yi}  数据源={src} ...",
             flush=True,
         )
         t_u = time.perf_counter()
         base = load_universe(ensure_output_dir("outputs"), 0)
-        quoted = evaluate_universe_with_tencent(base)
+
+        def _quote_df() -> pd.DataFrame:
+            if src == "eastmoney":
+                return evaluate_universe_with_eastmoney(base)
+            if src == "tencent":
+                return evaluate_universe_with_tencent(base)
+            try:
+                return evaluate_universe_with_tencent(base)
+            except Exception as e:  # noqa: BLE001
+                print(f"  腾讯行情失败，改东财: {e!r}", flush=True)
+                return evaluate_universe_with_eastmoney(base)
+
+        quoted = _quote_df()
         filtered = quoted[quoted["market_cap_yi"] > mcap_yi].copy()
         filtered = filtered.sort_values("market_cap_yi", ascending=False, kind="mergesort").reset_index(drop=True)
         list_path = out_dir / f"_universe_mcap_gt{mcap_yi:g}yi.csv"

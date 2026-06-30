@@ -18,6 +18,9 @@ def _ak():
 
 LOGGER = logging.getLogger(__name__)
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+_EM_A_FS = "m:0 t:6,m:0 t:80,m:1 t:2,m:1 t:23,m:0 t:81 s:2048"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="筛选全A股票池")
@@ -200,9 +203,14 @@ def normalize_universe_df(df: pd.DataFrame) -> pd.DataFrame:
 
 def load_universe(output_dir: Path, stock_limit: int) -> pd.DataFrame:
     universe_path = cache_dir(output_dir) / "a_share_universe.csv"
+    bundled_path = SCRIPT_DIR / "data" / "a_share_universe.csv"
     if universe_path.exists():
         df = pd.read_csv(universe_path, dtype={"code": str})
         df = normalize_universe_df(df)
+    elif bundled_path.is_file():
+        df = pd.read_csv(bundled_path, dtype={"code": str})
+        df = normalize_universe_df(df)
+        LOGGER.info("使用内置券表: %s", bundled_path)
     else:
         df = normalize_universe_df(_ak().stock_info_a_code_name())
         save_dataframe_with_fallback(df, universe_path)
@@ -288,6 +296,81 @@ def parse_tencent_quote_line(line: str) -> dict[str, object] | None:
         "turnover_amount": turnover_amount,
         "turnover_amount_yi": (turnover_amount / 1e8) if turnover_amount is not None else None,
     }
+
+
+def fetch_a_share_spot_eastmoney(*, page_size: int = 100) -> pd.DataFrame:
+    """东财沪深京 A 股实时行情（分页拉全量），含市值与收盘。"""
+    url = "https://82.push2.eastmoney.com/api/qt/clist/get"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    all_rows: list[dict[str, object]] = []
+    pn = 1
+    total = 0
+    last_err: Exception | None = None
+    while True:
+        params = {
+            "pn": str(pn),
+            "pz": str(page_size),
+            "po": "1",
+            "np": "1",
+            "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+            "fltt": "2",
+            "invt": "2",
+            "fid": "f20",
+            "fs": _EM_A_FS,
+            "fields": "f12,f14,f20,f2",
+        }
+        try:
+            r = requests.get(url, params=params, headers=headers, timeout=40)
+            r.raise_for_status()
+            payload = r.json()
+            data = payload.get("data") or {}
+            total = int(data.get("total") or 0)
+            diff = data.get("diff") or []
+            if not diff:
+                break
+            for item in diff:
+                code = str(item.get("f12", "")).strip().zfill(6)
+                name = str(item.get("f14", "")).strip()
+                mkt = safe_float(str(item.get("f20", "")) if item.get("f20") is not None else "")
+                close = safe_float(str(item.get("f2", "")) if item.get("f2") is not None else "")
+                if not code or mkt is None or mkt <= 0:
+                    continue
+                mkt_yi = mkt / 1e8
+                all_rows.append(
+                    {
+                        "code": code,
+                        "quote_name": name,
+                        "latest_close": float(close) if close is not None else 0.0,
+                        "total_shares": None,
+                        "market_cap": mkt,
+                        "market_cap_yi": mkt_yi,
+                        "turnover_amount": None,
+                        "turnover_amount_yi": None,
+                    }
+                )
+            if len(all_rows) >= total or len(diff) < page_size:
+                break
+            pn += 1
+            time.sleep(0.05)
+        except Exception as exc:  # noqa: BLE001
+            last_err = exc
+            time.sleep(0.5 + pn * 0.1)
+            if pn > 3 and not all_rows:
+                raise RuntimeError(f"东财 A 股全市场行情请求失败: {last_err}") from last_err
+            pn += 1
+    if not all_rows:
+        raise ValueError("东财 A 股全市场行情未返回可用数据。")
+    return pd.DataFrame(all_rows).drop_duplicates(subset=["code"]).reset_index(drop=True)
+
+
+def evaluate_universe_with_eastmoney(universe: pd.DataFrame) -> pd.DataFrame:
+    spot = fetch_a_share_spot_eastmoney()
+    df = universe.merge(spot, on=["code"], how="inner")
+    if "name_x" in df.columns:
+        df["name"] = df["name_x"]
+        drop_cols = [col for col in ["name_x", "name_y", "quote_name"] if col in df.columns]
+        df = df.drop(columns=drop_cols)
+    return df
 
 
 def evaluate_universe_with_tencent(universe: pd.DataFrame, batch_size: int = 200) -> pd.DataFrame:

@@ -43,7 +43,7 @@ jobs:
           WORKERS: ${{ github.event.inputs.workers || '4' }}
         run: |
           set -e
-          CMD="python -u export_all_a_daily_k_quana.py --workers ${WORKERS}"
+          CMD="python -u export_all_a_daily_k_quana.py --workers ${WORKERS} --mcap-source eastmoney"
           if [ "${LIMIT}" != "0" ] && [ -n "${LIMIT}" ]; then
             CMD="${CMD} --limit ${LIMIT}"
           fi
