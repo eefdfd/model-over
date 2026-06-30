@@ -1,0 +1,33 @@
+# 在 sanyaosukuangjia 目录下执行（PowerShell 可先 Set-Location）
+
+# ========== A 股主流程 ==========
+# 1）日 K 要当日最新时，先全量/筛市值更新 quana（耗时可较长）：
+#    python export_all_a_daily_k_quana.py
+# 1b）默认只刷新「总市值>200亿」名单内的 csv；quana 里其余旧文件不会更新。
+#     若希望宽松趋势表里的「数据截止日」与本次导出一致，二选一：
+#     python trend_up_screen_loose.py --universe-csv quana/_universe_mcap_gt200yi.csv
+#     或：python model.py --trend-match-default-export-universe
+# 2）主流程：
+Set-Location D:\model\sanyaosukuangjia
+python model.py
+
+# ========== ETF：全市场宽松趋势强度排序 ==========
+# python etf_trend_up_screen_loose.py
+# 默认: outputs/当日/etf_trend_up_loose_全市场_按趋势强度.xlsx（全量+仅符合，按趋势强度降序）
+# python etf_trend_up_screen_loose.py --workers 16
+
+# ========== GitHub Actions 云端定时跑 ETF（免费）==========
+# 工作流文件：项目根目录 .github/workflows/etf-daily.yml
+# 首次：在项目根目录 git init → 推到 GitHub 后，网页 Actions 里可手动 Run workflow
+# 定时：每个交易日北京时间约 15:30 自动跑；结果在 Actions 页下载 Artifacts（xlsx）
+
+# 更详细的步骤与参数见：当日最新数据与运行说明.txt
+
+# ========== （可选）美股：市值 >=20B + 日 K 宽松趋势 ==========
+# 依赖：pip install akshare openpyxl
+# 默认：新浪 stock_us_spot 筛市值 + stock_us_daily 日 K；快照见 outputs/cache/us_sina_spot_normalized.csv
+# 东财市值：python us_trend_up_screen_loose.py --universe-source em
+# python us_trend_up_screen_loose.py
+# 若终端长时间看不到输出：python -u us_trend_up_screen_loose.py（无缓冲）
+# 重拉新浪全表快照：python us_trend_up_screen_loose.py --refresh-sina-spot
+# 仅指定池：python us_trend_up_screen_loose.py --tickers AAPL,MSFT,NVDA

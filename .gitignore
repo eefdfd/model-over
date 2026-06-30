@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# 本地大数据（不要推到 GitHub）
+model/sanyaosukuangjia/quana/
+model/sanyaosukuangjia/outputs/cache/
+model/sanyaosukuangjia/outputs/**/*.xlsx
+model/sanyaosukuangjia/outputs/**/*.csv
+
+# IDE
+.idea/
+.vscode/
+*.swp
