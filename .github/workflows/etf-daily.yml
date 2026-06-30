@@ -29,7 +29,7 @@ jobs:
 
       - name: Run ETF trend screen
         working-directory: model/sanyaosukuangjia
-        run: python -u etf_trend_up_screen_loose.py --workers 8 --refresh-universe
+        run: python -u etf_trend_up_screen_loose.py --workers 4 --refresh-universe
 
       - name: Upload result xlsx
         uses: actions/upload-artifact@v4

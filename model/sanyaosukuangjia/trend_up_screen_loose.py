@@ -39,8 +39,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from screen_matrix_short_trend import _name_cache_path, build_name_to_code
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 # 默认写入 outputs/当日日期/，便于按自然日归档
 _DEFAULT_OUT_DIR = SCRIPT_DIR / "outputs" / date.today().strftime("%Y-%m-%d")
@@ -76,6 +74,8 @@ def trend_loose_dataframe_for_xlsx(df: pd.DataFrame) -> pd.DataFrame:
 
 def _load_code_to_name() -> dict[str, str]:
     """6 位代码 -> 名称，来自全 A 券表缓存（与短线脚本同文件）。"""
+    from screen_matrix_short_trend import _name_cache_path, build_name_to_code
+
     build_name_to_code()
     p = _name_cache_path()
     u = pd.read_csv(p, dtype={"code": str, "name": str}, encoding="utf-8-sig")
