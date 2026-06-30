@@ -1,0 +1,67 @@
+# A 股：市值>200亿 日 K 导出 + 宽松趋势筛选（与 order.txt 主流程步骤 1～1b 一致）
+# 手动：Actions → A-share trend daily → Run workflow
+name: A-share trend daily
+
+on:
+  schedule:
+    # UTC 08:30 = 北京时间 16:30（收盘后，周一～周五）
+    - cron: "30 8 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "仅处理前 N 只股票（0=全部；测试可填 10）"
+        required: false
+        default: "0"
+      workers:
+        description: "拉日 K 并发数"
+        required: false
+        default: "4"
+
+jobs:
+  a-share-trend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: model/sanyaosukuangjia/requirements-a-share.txt
+
+      - name: Install dependencies
+        run: pip install -r model/sanyaosukuangjia/requirements-a-share.txt
+
+      - name: Export daily K (mcap > 200B)
+        working-directory: model/sanyaosukuangjia
+        env:
+          LIMIT: ${{ github.event.inputs.limit || '0' }}
+          WORKERS: ${{ github.event.inputs.workers || '4' }}
+        run: |
+          set -e
+          CMD="python -u export_all_a_daily_k_quana.py --workers ${WORKERS}"
+          if [ "${LIMIT}" != "0" ] && [ -n "${LIMIT}" ]; then
+            CMD="${CMD} --limit ${LIMIT}"
+          fi
+          echo "Running: ${CMD}"
+          ${CMD}
+
+      - name: Trend screen (loose)
+        working-directory: model/sanyaosukuangjia
+        run: |
+          python -u trend_up_screen_loose.py --universe-csv quana/_universe_mcap_gt200yi.csv
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: a-share-trend-${{ github.run_number }}-${{ github.run_attempt }}
+          path: |
+            model/sanyaosukuangjia/outputs/**/trend_up_loose*.xlsx
+            model/sanyaosukuangjia/quana/_universe_mcap_gt200yi.csv
+            model/sanyaosukuangjia/quana/_export_log.csv
+          retention-days: 30
+          if-no-files-found: error

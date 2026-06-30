@@ -16,10 +16,15 @@ python model.py
 # 默认: outputs/当日/etf_trend_up_loose_全市场_按趋势强度.xlsx（全量+仅符合，按趋势强度降序）
 # python etf_trend_up_screen_loose.py --workers 16
 
-# ========== GitHub Actions 云端定时跑 ETF（免费）==========
-# 工作流文件：项目根目录 .github/workflows/etf-daily.yml
-# 首次：在项目根目录 git init → 推到 GitHub 后，网页 Actions 里可手动 Run workflow
-# 定时：每个交易日北京时间约 15:30 自动跑；结果在 Actions 页下载 Artifacts（xlsx）
+# ========== GitHub Actions 云端定时（免费）==========
+# ETF：.github/workflows/etf-daily.yml
+#   定时约 15:30；Actions → ETF daily screen → Run workflow
+# A股日K+趋势：.github/workflows/a-share-trend-daily.yml
+#   等价于：
+#     python export_all_a_daily_k_quana.py
+#     python trend_up_screen_loose.py --universe-csv quana/_universe_mcap_gt200yi.csv
+#   定时约 16:30（收盘后）；Actions → A-share trend daily → Run workflow
+# 结果：进入该次运行页面最下方 Artifacts 下载 zip
 
 # 更详细的步骤与参数见：当日最新数据与运行说明.txt
 
